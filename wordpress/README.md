@@ -8,6 +8,11 @@ CentOSでDockerを使ってWordPressを立ち上げたい、という人はわ�
 苦労した。というわけで、ステップごとにうまくいっているか確認しながら作業を進める。
 なお、セキュリティ対策についてはこの記事に含めないので各自で適切に設定されたい。
 
+以下、ハマりポイント
+
+* dockerはそのままでは一般ユーザアカウントから実行できない。dockerグループを追加し、グループパスワードを設定した上で、dockerを再起動、後は必要に応じてnewgrpすることで実行できるようにする。
+* docker-composeコマンドで起動すると、ボリュームにプロジェクト名のプレフィックスがつく。生のdockerコマンドで作ったボリュームを利用したい時には、予めそれを見越した名前にするか、ボリュームのリネームが必要。
+
 # 作業
 
 ## CentOS7インストール直後からdockerの動作確認まで
@@ -142,7 +147,7 @@ sudo /usr/local/bin/pip install --upgrade pip
 sudo /usr/local/bin/pip install docker-compose
 ```
 
-ここから、docker-composeによる設定をするが、docker-composeで作成したvolumeには勝手にプレフィックスがつく。先程作ったボリュームを使いたいなら、プレフィックス付きの名前に変更しなければならない。
+ここから、docker-composeによる設定をするが、docker-composeで作成したvolumeには勝手にプレフィックスがつく。プロジェクト名はデフォルトではカレントディレクトリとなる。私の知る限りでは、このプレフィックスを抑制できないようだ。先程作ったボリュームを使いたいなら、プレフィックス付きの名前に変更しなければならない。
 
 私の知る限りDockerのvolumeのリネームはできないようなので、新しくボリュームを作ってコピーして、古いのを消すしかない。
 
@@ -154,7 +159,7 @@ docker volume ls | grep data
 local               wp_db-data
 ```
 
-以下のようなdocker-composeファイルを作る。
+以下のようなdocker-composeファイルを作る。先程のdockerコマンドをそのままYAML化したものだ。
 
 ```yaml
 version: '3'
@@ -184,7 +189,7 @@ volumes:
   db-data:
 ```
 
-`docker-compose up`を叩くが、この時に`-p`オプションでプロジェクト名として`wp`を指定する。
+`docker-compose up`を叩くが、この時に`-p`オプションでプロジェクト名として`wp`を指定する。ここではvolumeとして`db-data`を使うことを宣言しているが、これにプロジェクト名のプレフィックス`wp`がついて、全体で`wp_prefix`になる。プロジェクト名はデフォルトでカレントディレクトリになるので、それを見越してディレクトリを掘っても良い。
 
 ```sh
 docker-compose -p wp up
@@ -192,6 +197,48 @@ docker-compose -p wp up
 
 これで、先程永続化したボリュームが再利用されていれば成功。docker-composeは`-d`(Detached)オプションをつけることでバックグラウンド実行ができるが、テスト中はエラーメッセージを見るために付けないほうが良いと思う。
 
+## 環境変数を.evnに逃がす
+
+環境変数のうち、パスワードとかそういうのを`.env`に逃がす。YAML内での指定と違って`=`で指定するので注意。
+
+```sh
+$ cat .env
+MYSQL_ROOT_PASSWORD=mysqlpassword
+WORDPRESS_DB_PASSWORD=mysqlpassword
+```
+
+`docker-compose.yaml`は、それぞれの定義で`env_file: .env`を指定する。
+
+```yaml
+version: '3'
+  
+services:
+  db:
+    image: mysql:5.7
+    container_name: mysql
+    volumes:
+      - db-data:/var/lib/mysql
+    restart: always
+    env_file: .env
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress
+    container_name: wordpress
+    ports:
+      - "8080:80"
+    volumes:
+      - "$PWD/wordpress:/var/www/html"
+    env_file: .env
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+volumes:
+  db-data:
+```
+
+この状態で`docker-compose up -p wp`して、正しく起動することを確認する。
+
 # 参考
 
-* [Dockerを一般ユーザで実行する](https://qiita.com/naomichi-y/items/93819573a5a51ae8cc07)
+* [Dockerでユーザーをdockerグループに追加することの危険性を理解しよう](https://qiita.com/matyapiro31/items/3e6398ce737e2cdb5a22)
+* [docker-composeでwordpress環境をサクッと構築する](https://qiita.com/mom0tomo/items/7e611ac829863d4c5c82)
