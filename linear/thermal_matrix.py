@@ -1,11 +1,11 @@
 import copy
 
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from scipy import linalg
 import numpy as np
 
-
+plt.switch_backend("Agg")
 
 N = 32
 v = np.array([min(x, N-x) for x in range(N)], dtype='float64')
@@ -29,3 +29,7 @@ for s in r:
     plt.plot(s)
 
 plt.savefig("test2.png")
+
+# 最大固有値と対応する固有ベクトル
+w, v = linalg.eigh(A, eigvals=(N-1,N-1))
+print(v)

@@ -1,10 +1,10 @@
 import copy
 
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
+plt.switch_backend("Agg")
 
 
 def calc(v, h):
