@@ -28,7 +28,7 @@ for i in range(1000):
 for s in r:
     plt.plot(s)
 
-plt.savefig("test2.png")
+plt.savefig("result_matrix.png")
 
 # 最大固有値と対応する固有ベクトル
 w, v = linalg.eigh(A, eigvals=(N-1,N-1))

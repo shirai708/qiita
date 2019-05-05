@@ -29,4 +29,4 @@ for i in range(1000):
 for s in r:
     plt.plot(s)
 
-plt.savefig("test.png")
+plt.savefig("result.png")
