@@ -11,7 +11,7 @@
 
 例えば、こんなコードを見てみる。
 
-```cpp:test.cpp
+```cpp:func.cpp
 const double G = 9.8;
 const double dt = 0.01;
 const int N = 10000;
@@ -27,7 +27,7 @@ void func(double v[N]) {
 
 実際、現代のコンパイラはこれをちゃんと最適化する。上記のコードを`g++ -O3 -S`でコンパイルすると、こんなアセンブリを吐く。
 
-```nasm:test.s
+```nasm:func.s
 func(double*):
 LFB0:
 	movapd	lC0(%rip), %xmm1
@@ -178,3 +178,270 @@ int main() {
 }
 EOS
 ```
+
+これで、`N`をいろいろ変えてみて、どこまで即値で返せるか確認してみよう。
+
+まず`N=5`。
+
+```sh
+$ ruby dump.rb 5 > test.cpp; g++ -O3 -S test.cpp
+```
+
+```asm
+_main:
+LFB2:
+  subq  $8, %rsp
+LCFI0:
+  movl  $55, %esi
+  xorl  %eax, %eax
+  leaq  lC0(%rip), %rdi
+  call  _printf
+  xorl  %eax, %eax
+  addq  $8, %rsp
+LCFI1:
+  ret
+```
+
+まだいけてますね。次、`N=6`。
+
+```asm
+_main:
+LFB2:
+  leaq  lC1(%rip), %rdi
+  subq  $8, %rsp
+LCFI0:
+  xorl  %eax, %eax
+  movdqa  lC0(%rip), %xmm2
+  movdqa  __ZL1a(%rip), %xmm1
+  movdqa  %xmm2, %xmm0
+  psrlq $32, %xmm2
+  pmuludq __ZL1a(%rip), %xmm0
+  pshufd  $8, %xmm0, %xmm0
+  psrlq $32, %xmm1
+  pmuludq %xmm2, %xmm1
+  pshufd  $8, %xmm1, %xmm1
+  punpckldq %xmm1, %xmm0
+  movdqa  %xmm0, %xmm1
+  psrldq  $8, %xmm1
+  paddd %xmm1, %xmm0
+  movdqa  %xmm0, %xmm1
+  psrldq  $4, %xmm1
+  paddd %xmm1, %xmm0
+  movd  %xmm0, %esi
+  addl  $61, %esi
+  call  _printf
+  xorl  %eax, %eax
+  addq  $8, %rsp
+LCFI1:
+  ret
+```
+
+あ、力尽きた。というわけでGCCはループを5倍展開はできるが、6倍展開はしない。
+
+次、Clangでも試してみよう。GCCが諦めた`N=6`から。
+
+```sh
+$ ruby dump.rb 6 > test.cpp; clang++ -O3  -S test.cpp
+```
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pushq %rbp
+  .cfi_def_cfa_offset 16
+  .cfi_offset %rbp, -16
+  movq  %rsp, %rbp
+  .cfi_def_cfa_register %rbp
+  leaq  L_.str(%rip), %rdi
+  movl  $91, %esi
+  xorl  %eax, %eax
+  callq _printf
+  xorl  %eax, %eax
+  popq  %rbp
+  retq
+```
+
+まだいけそうですね。`N=10`は？
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pushq %rbp
+  .cfi_def_cfa_offset 16
+  .cfi_offset %rbp, -16
+  movq  %rsp, %rbp
+  .cfi_def_cfa_register %rbp
+  leaq  L_.str(%rip), %rdi
+  movl  $385, %esi              ## imm = 0x181
+  xorl  %eax, %eax
+  callq _printf
+  xorl  %eax, %eax
+  popq  %rbp
+  retq
+```
+
+え？まだいけそう？じゃあ限界を調べてみましょう。
+
+# clang++に定数配列を含むループ展開を食わせた場合、XX回転で力尽きる
+
+「clang++は、定数配列を含むループ展開を何回転まで定数畳み込みをやってくれるんでしょうか？これってトリビアになりませんか？」
+
+このトリビアの種、つまりこういうことになります。
+
+「clang++に定数配列を含むループ展開を食わせた場合、XX回転で力尽きる」
+
+実際に、調べてみた。
+
+まず、`N=100`から。
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pushq %rbp
+  .cfi_def_cfa_offset 16
+  .cfi_offset %rbp, -16
+  movq  %rsp, %rbp
+  .cfi_def_cfa_register %rbp
+  leaq  L_.str(%rip), %rdi
+  movl  $338350, %esi           ## imm = 0x529AE
+  xorl  %eax, %eax
+  callq _printf
+  xorl  %eax, %eax
+  popq  %rbp
+  retq
+```
+
+まだ大丈夫。
+
+次、`N=200`。
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pushq %rbp
+  .cfi_def_cfa_offset 16
+  .cfi_offset %rbp, -16
+  movq  %rsp, %rbp
+  .cfi_def_cfa_register %rbp
+  leaq  L_.str(%rip), %rdi
+  movl  $2686700, %esi          ## imm = 0x28FEEC
+  xorl  %eax, %eax
+  callq _printf
+  xorl  %eax, %eax
+  popq  %rbp
+  retq
+```
+
+まだできている。
+
+`N=300`を食わせる。
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pxor  %xmm0, %xmm0
+  movl  $12, %eax
+  leaq  l___const.main.b(%rip), %rcx
+  pxor  %xmm1, %xmm1
+  jmp LBB1_1
+  .p2align  4, 0x90
+LBB1_3:                                 ##   in Loop: Header=BB1_1 Depth=1
+  movdqa  -16(%rcx,%rax,4), %xmm0
+  movdqa  (%rcx,%rax,4), %xmm1
+  pmulld  %xmm0, %xmm0
+  pmulld  %xmm1, %xmm1
+  paddd %xmm3, %xmm0
+  paddd %xmm2, %xmm1
+  addq  $16, %rax
+LBB1_1:                                 ## =>This Inner Loop Header: Depth=1
+  movdqa  -48(%rcx,%rax,4), %xmm3
+  movdqa  -32(%rcx,%rax,4), %xmm2
+  pmulld  %xmm3, %xmm3
+  paddd %xmm0, %xmm3
+  pmulld  %xmm2, %xmm2
+  paddd %xmm1, %xmm2
+  cmpq  $300, %rax              ## imm = 0x12C
+  jne LBB1_3
+(snip)
+```
+
+力尽きた。その限界を二分法で調べよう。`N=223`。
+
+```sh
+$ ruby dump.rb 223 > test.cpp; clang++ -O3  -S test.cpp
+```
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pushq %rbp
+  .cfi_def_cfa_offset 16
+  .cfi_offset %rbp, -16
+  movq  %rsp, %rbp
+  .cfi_def_cfa_register %rbp
+  leaq  L_.str(%rip), %rdi
+  movl  $3721424, %esi          ## imm = 0x38C8D0
+  xorl  %eax, %eax
+  callq _printf
+  xorl  %eax, %eax
+  popq  %rbp
+  retq
+```
+
+即値を返している。
+
+`N=224`。
+
+```sh
+$ ruby dump.rb 224 > test.cpp; clang++ -O3  -S test.cpp
+```
+
+```nasm
+_main:                                  ## @main
+  .cfi_startproc
+## %bb.0:
+  pxor  %xmm0, %xmm0
+  movl  $12, %eax
+  leaq  l___const.main.b(%rip), %rcx
+  pxor  %xmm1, %xmm1
+  .p2align  4, 0x90
+LBB1_1:                                 ## =>This Inner Loop Header: Depth=1
+  movdqa  -48(%rcx,%rax,4), %xmm2
+  movdqa  -32(%rcx,%rax,4), %xmm3
+  pmulld  %xmm2, %xmm2
+  paddd %xmm0, %xmm2
+  movdqa  -16(%rcx,%rax,4), %xmm0
+  pmulld  %xmm3, %xmm3
+  paddd %xmm1, %xmm3
+  movdqa  (%rcx,%rax,4), %xmm1
+  pmulld  %xmm0, %xmm0
+  paddd %xmm2, %xmm0
+  pmulld  %xmm1, %xmm1
+  paddd %xmm3, %xmm1
+  addq  $16, %rax
+  cmpq  $236, %rax
+  jne LBB1_1
+```
+
+力尽きた。
+
+# まとめ
+
+こうしてこの世界にまた一つ
+新たなトリビアが生まれた。
+
+clang++は、定数関数を含むループの定数畳み込みを、224回転で力尽きる。
+
+# 他のコンパイラいじめ関連記事
+
+* [C++でアスタリスクをつけすぎると端末が落ちる](https://qiita.com/kaityo256/items/d54439246edc1cc58121)
+* [コンパイラは関数のインライン展開を☓☓段で力尽きる](https://qiita.com/kaityo256/items/b4dc66c92338c0b92552)
+* [関数ポインタと関数オブジェクトのインライン展開](https://qiita.com/kaityo256/items/5911d50c274465e19cf6)
+* [インテルコンパイラのアセンブル時最適化](https://qiita.com/kaityo256/items/e7b05eb9c2bfbbd434a7)
+* [GCCの最適化がインテルコンパイラより賢くて驚いた話](https://qiita.com/kaityo256/items/72c1bf93a210e450308c)
