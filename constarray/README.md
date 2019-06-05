@@ -179,6 +179,33 @@ int main() {
 EOS
 ```
 
+これは配列の長さを指定して、内積を取るプログラムを吐くスクリプトである。例えば
+
+```sh
+$ ruby dump.rb 10
+```
+
+などとすると、こんなソースを吐く。
+
+```cpp
+#include <cstdio>
+const int N = 10;
+const int a[] = {1,2,3,4,5,6,7,8,9,10};
+
+int func(int b[N]) {
+  int sum = 0;
+  for (int i = 0; i < N; i++) {
+    sum += a[i] * b[i];
+  }
+  return sum;
+}
+
+int main() {
+  int b[] = {1,2,3,4,5,6,7,8,9,10};
+  printf("%d\n", func(b));
+}
+```
+
 これで、`N`をいろいろ変えてみて、どこまで即値で返せるか確認してみよう。
 
 まず`N=5`。
