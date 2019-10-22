@@ -186,18 +186,7 @@ $$
 
 加減算の公式は厳密ですが、乗除算の公式には近似が入ります。
 
-まず、
-
-$$
-\begin{aligned}
-\varepsilon_X &\equiv \frac{X - \sigma_X}{\mu_X} \\
-\varepsilon_Y &\equiv \frac{Y - \sigma_Y}{\mu_Y} 
-\end{aligned}
-$$
-
-を定義しておきます。$E[\varepsilon_X] = E[\varepsilon_Y] = 0$です。
-
-その上で、乗算の期待値の計算をしましょう。
+乗算の期待値の計算をしましょう。
 
 $$
 \begin{aligned}
@@ -265,3 +254,110 @@ $$
 $$
 XY = (\mu_X\mu_Y) \pm  |\mu_X\mu_Y| \sqrt{\frac{\sigma_X^2}{\mu_X^2}+\frac{\sigma_Y^2}{\mu_Y^2}} 
 $$
+
+## 除算
+
+除算はとても面倒なので、最初から$X$と$Y$の独立性を仮定します。
+
+まずは期待値です。独立性を仮定したので
+
+$$
+\begin{aligned}
+E[X/Y] &= E[X]E[1/Y]　\\
+&= \mu_X E[1/Y]
+\end{aligned}
+$$
+
+となります。$E[1/Y]$の評価ですが、
+
+$$
+\begin{aligned}
+\varepsilon_Y &\equiv \frac{Y - \mu_Y}{\mu_Y} 
+\end{aligned}
+$$
+
+を定義しておきます。$E[\varepsilon_Y] = 0$です。
+
+すると、
+
+$$
+\begin{aligned}
+E[1/Y] &= E\left[\frac{1}{\mu_Y + Y - \mu_Y} \right] \\
+&= \frac{1}{\mu_Y} E\left[\frac{1}{1+\varepsilon_Y} \right] \\
+&\sim \frac{1}{\mu_Y} E[1-\varepsilon_Y]\\
+&= \frac{1}{\mu_Y}
+\end{aligned}
+$$
+
+となります。
+
+次に分散です。$X$と$Y$が独立な場合、
+
+$$
+Var[XY] =  \mu_X^2 \sigma_Y^2
++ \mu_Y^2 \sigma_X^2
++ \sigma_X^2 \sigma_Y^2 
+$$
+
+となるのでした。ここで$Y$の代わりに$1/Y$を代入して整理すると、
+
+$$
+\begin{aligned}
+Var[X/Y] &=  \mu_X^2 \sigma_{1/Y}^2
++ \sigma_X^2\mu_{1/Y}^2
++ \sigma_X^2 \sigma_{1/Y}^2 \\
+&= (\mu_X^2 + \sigma_X^2)\sigma_{1/Y}^2 + \frac{\sigma_X^2}{\mu_Y^2}
+\end{aligned}
+$$
+
+つまり、
+
+$$
+\sigma_{1/Y}^2 \equiv Var[1/Y]
+$$
+
+が計算できればよいことになります。計算してみましょう。
+
+$$
+\begin{aligned}
+Var[1/Y] &= E\left[\left(\frac{1}{Y} - \frac{1}{\mu_Y} \right)^2  \right] \\
+&= \frac{1}{\mu_Y^2} E\left[\left(\frac{\varepsilon_Y}{(1+\varepsilon_Y)} \right)^2  \right] \\
+&\sim \frac{1}{\mu_Y^2} E[\varepsilon_Y^2]\\
+&= \frac{\sigma_Y^2}{\mu_Y^4}
+\end{aligned}
+$$
+
+これを先ほどの式に代入して整理すると、
+
+$$
+Var[X/Y] = \frac{\mu_X^2}{\mu_Y^2}
+\left(
+\frac{\sigma_X^2}{\mu_X^2}
++\frac{\sigma_Y^2}{\mu_Y^2}
++\frac{\sigma_X^2\sigma_Y^2}{\mu_X^2\mu_Y^2}
+\right)
+$$
+
+最後の項を高次であるから無視すると、
+
+$$
+Var[X/Y] = \frac{\mu_X^2}{\mu_Y^2}
+\left(
+\frac{\sigma_X^2}{\mu_X^2}
++\frac{\sigma_Y^2}{\mu_Y^2}
+\right)
+$$
+
+以上から、除算の誤差伝播の公式
+
+$$
+X/Y = \left(\frac{\mu_X}{\mu_Y}\right) \pm \left|\frac{\mu_X}{\mu_Y} \right|\sqrt{\frac{\sigma_X^2}{\mu_X^2}+\frac{\sigma_Y^2}{\mu_Y^2}}
+$$
+
+が導出できました。
+
+## まとめ
+
+誤差伝播はテイラー展開でやったほうが楽なのですが、何を近似しているのか個人的にわかりづらかったのと、期待値と分散の観点からていねいに導出している記事が見つからなかったので書いてみました。特に除算は見通しよくやらないと面倒です。もっと良い導出があるかもしれません。
+
+どうでもいいですが、Error Propagationの訳は「誤差伝播」と「誤差伝搬」のどちらなんでしょうね。僕はずっと「誤差伝搬」と言ってたのですが、世間的には「誤差伝播」の方が多い気がします。
